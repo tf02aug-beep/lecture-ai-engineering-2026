@@ -4,7 +4,7 @@ import sys
 import app.ask as ask_module
 
 
-def test_ask_prints_token_usage_and_returns_text(capsys):
+def test_ask_prints_response_time_and_token_usage(monkeypatch, capsys):
     response = SimpleNamespace(
         text="answer",
         usage_metadata=SimpleNamespace(
@@ -13,9 +13,14 @@ def test_ask_prints_token_usage_and_returns_text(capsys):
         ),
     )
     chat = SimpleNamespace(send_message=lambda question: response)
+    timestamps = iter([10.0, 11.234])
+    monkeypatch.setattr(ask_module.time, "perf_counter", lambda: next(timestamps))
 
     assert ask_module.ask(chat, "question") == "answer"
-    assert capsys.readouterr().out.strip() == "[トークン使用量] 入力: 12 / 出力: 5"
+    assert capsys.readouterr().out.strip().splitlines() == [
+        "[応答時間] 1.23秒",
+        "[トークン使用量] 入力: 12 / 出力: 5",
+    ]
 
 
 def test_main_reuses_chat_for_follow_up_questions(monkeypatch):
