@@ -11,9 +11,11 @@
 """
 
 import argparse
+import time
 
 from google import genai
 from google.genai import errors
+from google.genai.chats import Chat
 
 from app.config import MODEL, api_error_message, get_api_key
 
@@ -22,19 +24,17 @@ DEFAULT_QUESTION = "AIE2026の講座の宿題にある「3レベル」とは何�
 TEMPERATURE = 0.2
 
 
-def ask(question: str) -> str:
-    client = genai.Client(api_key=get_api_key())
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=question,
-        config=genai.types.GenerateContentConfig(temperature=TEMPERATURE),
-    )
+def ask(chat: Chat, question: str) -> str:
+    started_at = time.perf_counter()
+    response = chat.send_message(question)
+    elapsed = time.perf_counter() - started_at //ここで応答時間を計測
+    print(f"[応答時間] {elapsed:.2f}秒")
 
     usage = response.usage_metadata
     if usage is not None:
         print(
-            f"[tokens] input={usage.prompt_token_count}, "
-            f"output={usage.candidates_token_count}"
+            f"[トークン使用量] 入力: {usage.prompt_token_count} / "
+            f"出力: {usage.candidates_token_count}"
         )
 
     return response.text
@@ -49,7 +49,14 @@ def main() -> None:
     print(f"[temperature] {TEMPERATURE}")
     print(f"[質問] {args.question}\n")
     try:
-        print(ask(args.question))
+        client = genai.Client(api_key=get_api_key())
+        chat = client.chats.create(model=MODEL)
+        print(ask(chat, args.question))
+        while True://続けて質問する処理を追加
+            question = input("\n続けて質問できます（空行 / exit / quit で終了）: ")
+            if question.strip().lower() in ("", "exit", "quit"):
+                break
+            print(ask(chat, question))
     except errors.APIError as e:
         print(api_error_message(e.code, e.message))
         raise SystemExit(1)
